@@ -10,23 +10,55 @@ H2 database and reads application secrets from a HashiCorp Vault server.
 
 ## Requirements
 
-- JDK 25
-- A Vault token with read access to `secret/spring-boot-vault-sample`
-  (optional — the app boots without it)
+- JDK 25 (if running locally)
+- Docker & Docker Compose
+- A Vault token with read access to `persislabs-dev/testing`
 
-## Configure
+## Configuration
 
-Set your Vault token as an environment variable before running:
+### 1. Set Up Secrets in Vault
+Ensure the following secrets exist in your Vault server at path `persislabs-dev/testing`:
 
 ```bash
-export VAULT_TOKEN="hvs.xxxxxxxxxxxxxxxx"
+vault kv put persislabs-dev/testing \
+  db.username="yu71" \
+  db.password="53cret" \
+  api.key="super-secret-key" \
+  username="hendisantika"
 ```
 
-All other Vault settings live in `src/main/resources/application.properties`.
-
-## Run
+### 2. Create App Token (Security Best Practice)
+Avoid using the `root` token. Create a limited token for this app:
 
 ```bash
+# Write policy
+vault policy write spring-app-policy - <<EOF
+path "persislabs-dev/data/testing" {
+  capabilities = ["read"]
+}
+EOF
+
+# Create token
+vault token create -policy="spring-app-policy" -period=24h
+```
+
+### 3. Environment Variables
+Create a `.env` file in the root directory and add your token:
+
+```text
+VAULT_TOKEN=hvs.xxxxxxxxxxxxxxxx
+```
+
+## Run Application
+
+### Using Docker (Recommended)
+```bash
+docker-compose up --build
+```
+
+### Running Locally
+```bash
+export VAULT_TOKEN="hvs.xxxxxxxxxxxxxxxx"
 ./mvnw spring-boot:run
 ```
 
@@ -44,18 +76,7 @@ Base path: `/api/v1/products`
 | PUT    | `/{id}`         | Update a product                     |
 | DELETE | `/{id}`         | Delete a product                     |
 
-### Sample payload
-
-```json
-{
-  "name": "Mac Studio M4 Ultra",
-  "description": "32-core CPU, 80-core GPU, 128GB RAM",
-  "price": 75999000.00,
-  "stock": 3
-}
-```
-
-### cURL examples
+### cURL Examples
 
 ```bash
 # List
@@ -63,19 +84,6 @@ curl http://localhost:8080/api/v1/products
 
 # Search
 curl "http://localhost:8080/api/v1/products?name=ipad"
-
-# Create
-curl -X POST http://localhost:8080/api/v1/products \
-  -H "Content-Type: application/json" \
-  -d '{"name":"Mac Studio","description":"M4 Ultra","price":75999000.00,"stock":3}'
-
-# Update
-curl -X PUT http://localhost:8080/api/v1/products/1 \
-  -H "Content-Type: application/json" \
-  -d '{"name":"MacBook Pro 16","description":"M4 Max","price":52999000.00,"stock":4}'
-
-# Delete
-curl -X DELETE http://localhost:8080/api/v1/products/1
 ```
 
 ## H2 Console
@@ -85,39 +93,12 @@ Open `http://localhost:8080/h2-console`.
 | Field    | Value                   |
 |----------|-------------------------|
 | JDBC URL | `jdbc:h2:mem:vaultdb`   |
-| User     | `yu71`                  |
-| Password | `53cret`                |
+| User     | `sa` (or from Vault)    |
+| Password | (or from Vault)         |
 
 ## Vault
 
-On startup, `VaultSecretReader` reads the KV v2 secret at
-`secret/data/spring-boot-vault-sample` and logs each key with a masked value.
-If Vault is unreachable or `VAULT_TOKEN` is empty, the app logs a warning and
-continues to boot.
-
-Example of writing a secret to Vault:
-
-```bash
-vault kv put secret/spring-boot-vault-sample \
-  db.username=yu71 \
-  db.password=53cret \
-  api.key=super-secret
-```
-
-## Project layout
-
-```
-src/main/java/id/my/persislabs/vault
-├── SpringBootVaultSampleApplication.java
-├── controller/ProductController.java
-├── exception/
-│   ├── GlobalExceptionHandler.java
-│   └── ResourceNotFoundException.java
-├── model/Product.java
-├── repository/ProductRepository.java
-├── service/ProductService.java
-└── vault/VaultSecretReader.java
-```
+On startup, `VaultSecretReader` reads the KV v2 secret at `persislabs-dev/data/testing` and logs each key with a masked value.
 
 ## Author
 

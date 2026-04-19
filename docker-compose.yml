@@ -1,0 +1,8 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - VAULT_TOKEN=${VAULT_TOKEN}
+    restart: unless-stopped
